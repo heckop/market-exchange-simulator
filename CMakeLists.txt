@@ -28,5 +28,16 @@ target_include_directories(OrderBookBench PRIVATE ${CMAKE_SOURCE_DIR})
 add_executable(OrderBookTests test_orderbook.cpp)
 target_link_libraries(OrderBookTests PRIVATE OrderBookLib gtest gtest_main)
 
+add_executable(ProtocolTest net/test_protocol.cpp net/Gateway.hpp)
+target_include_directories(ProtocolTest PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_executable(exchange net/exchange_main.cpp net/Gateway.cpp net/Journal.cpp)
+target_link_libraries(exchange PRIVATE OrderBookLib)
+target_include_directories(exchange PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_executable(participant_sim net/participant_sim.cpp net/Gateway.cpp net/Journal.cpp bench/OrderGenerator.cpp)
+target_link_libraries(participant_sim PRIVATE OrderBookLib)
+target_include_directories(participant_sim PRIVATE ${CMAKE_SOURCE_DIR})
+
 include(GoogleTest)
 gtest_discover_tests(OrderBookTests)
