@@ -190,8 +190,8 @@ export namespace Trading {
 						resting.remaining_quantity -= fill_qty;
 						lvl.total_qty -=fill_qty;
 						trades.push_back(Trade{
-							.bid_trade = TradeInfo{.price = level_price, .quantity = fill_qty},
-							.ask_trade = TradeInfo{.price = level_price, .quantity = fill_qty}
+							.bid_trade = TradeInfo{.aggressor_id = order.id, .resting_id = resting.id, .price = level_price, .quantity = fill_qty},
+							.ask_trade = TradeInfo{.aggressor_id = order.id, .resting_id = resting.id, .price = level_price, .quantity = fill_qty}
 						});
 						if (resting.remaining_quantity == 0) {
 							unlink(Side::Sell, best_ask_idx, lvl.head);
@@ -228,8 +228,8 @@ export namespace Trading {
 						resting.remaining_quantity -= fill_qty;
 						lvl.total_qty -=fill_qty;
 						trades.push_back(Trade{
-							.bid_trade = TradeInfo{.price = level_price, .quantity = fill_qty},
-							.ask_trade = TradeInfo{.price = level_price, .quantity = fill_qty}
+							.bid_trade = TradeInfo{.aggressor_id = order.id, .resting_id = resting.id, .price = level_price, .quantity = fill_qty},
+							.ask_trade = TradeInfo{.aggressor_id = order.id, .resting_id = resting.id, .price = level_price, .quantity = fill_qty}
 						});
 						if (resting.remaining_quantity == 0) {
 							unlink(Side::Buy, best_bid_idx, lvl.head);
@@ -315,6 +315,28 @@ export namespace Trading {
 				}
 			}
 			return infos;
+		}
+
+		[[nodiscard]] Bbo best_bid() const {
+			if (best_bid_idx == NO_LEVEL) {
+				return {};
+			}
+			return {
+				.price = base_price + static_cast<Price>(best_bid_idx) * tick,
+				.qty = bid_level[best_bid_idx].total_qty,
+				.has = true
+			};
+		}
+
+		[[nodiscard]] Bbo best_ask() const {
+			if (best_ask_idx == NO_LEVEL) {
+				return {};
+			}
+			return {
+				.price = base_price + static_cast<Price>(best_ask_idx) * tick,
+				.qty = ask_level[best_ask_idx].total_qty,
+				.has = true
+			};
 		}
 	};
 }

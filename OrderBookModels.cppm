@@ -36,6 +36,8 @@ export namespace Trading {
 	};
 
 	struct TradeInfo {
+		OrderID aggressor_id = 0;
+		OrderID resting_id = 0;
 		Price price;
 		Quantity quantity;
 	};
@@ -53,6 +55,12 @@ export namespace Trading {
 	struct OrderBookLevelInfos {
 		std::vector<LevelInfo> bids;
 		std::vector<LevelInfo> asks;
+	};
+
+	struct Bbo {
+		Price price = 0;
+		Quantity qty = 0;
+		bool has = false;
 	};
 
 }
