@@ -3,7 +3,8 @@
 int main() {
 	Trading::OrderBook book;
 	Journal journal("exchange.journal");
-	Gateway gw(9001, book, journal);
-	gw.run_once();
+	Feed feed;
+	Gateway gw(9001, book, journal, feed);
+	gw.run();
 	return 0;
 }

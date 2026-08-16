@@ -28,16 +28,22 @@ target_include_directories(OrderBookBench PRIVATE ${CMAKE_SOURCE_DIR})
 add_executable(OrderBookTests test_orderbook.cpp)
 target_link_libraries(OrderBookTests PRIVATE OrderBookLib gtest gtest_main)
 
-add_executable(ProtocolTest net/test_protocol.cpp net/Gateway.hpp)
+add_executable(ProtocolTest net/test_protocol.cpp)
 target_include_directories(ProtocolTest PRIVATE ${CMAKE_SOURCE_DIR})
 
-add_executable(exchange net/exchange_main.cpp net/Gateway.cpp net/Journal.cpp)
+add_executable(exchange net/exchange_main.cpp net/Gateway.cpp net/Journal.cpp net/Feed.cpp)
 target_link_libraries(exchange PRIVATE OrderBookLib)
 target_include_directories(exchange PRIVATE ${CMAKE_SOURCE_DIR})
 
-add_executable(participant_sim net/participant_sim.cpp net/Gateway.cpp net/Journal.cpp bench/OrderGenerator.cpp)
+add_executable(participant_sim net/participant_sim.cpp bench/OrderGenerator.cpp)
 target_link_libraries(participant_sim PRIVATE OrderBookLib)
 target_include_directories(participant_sim PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_executable(feed_subscriber net/feed_subscriber.cpp)
+target_include_directories(feed_subscriber PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_executable(feed_test net/feed_test.cpp net/Feed.cpp)
+target_include_directories(feed_test PRIVATE ${CMAKE_SOURCE_DIR})
 
 include(GoogleTest)
 gtest_discover_tests(OrderBookTests)
