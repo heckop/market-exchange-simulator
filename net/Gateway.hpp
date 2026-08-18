@@ -5,6 +5,7 @@
 #include "Protocol.hpp"
 #include "Journal.hpp"
 #include "Feed.hpp"
+#include "SpscRing.hpp"
 
 import OrderBookEngine;
 
@@ -28,11 +29,12 @@ class Gateway {
 	Trading::OrderID next_internal = 1;
 	std::vector<std::byte> out_buf;
 	int cfd = -1;
-	Feed& feed;
+	SpscRing<FeedEvent, FEED_RING_SIZE>& ring;
 	std::int64_t last_bid_px = 0;
 	std::uint32_t last_bid_qty = 0;
-	std::uint64_t last_ask_px = 0;
+	std::int64_t last_ask_px = 0;
 	std::uint32_t last_ask_qty = 0;
+	std::uint32_t seq = 0;
 
 	template <class Body> void send_msg(int fd, MsgType t, const Body& b);
 	void accept_new(int kq, int lfd);
@@ -42,7 +44,7 @@ class Gateway {
 	void report_fill(Trading::OrderID internal, std::int64_t price, std::uint32_t qty);
 	void maybe_publish_bbo();
 public:
-	Gateway(int port, Trading::OrderBook& book, Journal& journal, Feed& feed)
-	: port(port), book(book), journal(journal), feed(feed) {}
+	Gateway(int port, Trading::OrderBook& book, Journal& journal, SpscRing<FeedEvent, FEED_RING_SIZE>& ring)
+	: port(port), book(book), journal(journal), ring(ring) {}
 	void run();
 };

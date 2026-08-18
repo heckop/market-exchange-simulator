@@ -16,18 +16,18 @@ Feed::Feed(const char *group_ip, std::uint16_t port) {
 	inet_pton(AF_INET, group_ip, &group.sin_addr);
 }
 
-void Feed::publish_trade(std::int64_t price, std::uint32_t qty, std::uint8_t aggressor_side) {
+void Feed::publish_trade(std::uint32_t seq, std::int64_t price, std::uint32_t qty, std::uint8_t aggressor_side) {
 	std::byte buf[sizeof(FeedHeader) + sizeof(TradePrintMsg)];
-	FeedHeader h{++seq, static_cast<std::uint8_t>(FeedType::TradePrint)};
+	FeedHeader h{seq, static_cast<std::uint8_t>(FeedType::TradePrint)};
 	TradePrintMsg msg{price, qty, aggressor_side};
 	std::memcpy(buf, &h, sizeof(h));
 	std::memcpy(buf + sizeof(h), &msg, sizeof(msg));
 	sendto(sock, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&group), sizeof(group));
 }
 
-void Feed::publish_bbo(std::int64_t bid_px, std::uint32_t bid_qty, std::int64_t ask_px, std::uint32_t ask_qty) {
+void Feed::publish_bbo(std::uint32_t seq, std::int64_t bid_px, std::uint32_t bid_qty, std::int64_t ask_px, std::uint32_t ask_qty) {
 	std::byte buf[sizeof(FeedHeader) + sizeof(BboUpdateMsg)];
-	FeedHeader h{++seq, static_cast<std::uint8_t>(FeedType::BboUpdate)};
+	FeedHeader h{seq, static_cast<std::uint8_t>(FeedType::BboUpdate)};
 	BboUpdateMsg msg{bid_px, bid_qty, ask_px, ask_qty};
 	std::memcpy(buf, &h, sizeof(h));
 	std::memcpy(buf + sizeof(h), &msg, sizeof(msg));

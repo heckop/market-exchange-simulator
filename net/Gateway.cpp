@@ -60,12 +60,17 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 			};
 			auto trades = book.add_order(o);
 			send_msg(conn.fd, MsgType::Accepted, AcceptedBody{p->client_oid});
-
+			Trading::Bbo bid = book.best_bid();
+			Trading::Bbo ask = book.best_ask();
+			std::int64_t bpx = bid.has ? bid.price : 0;
+			std::uint32_t bq = bid.has ? bid.qty : 0;
+			std::int64_t apx = ask.has ? ask.price : 0;
+			std::uint32_t aq = ask.has ? ask.qty : 0;
 			for (const auto& t: trades) {
 				report_fill(t.bid_trade.aggressor_id, t.bid_trade.price, t.bid_trade.quantity);
 				report_fill(t.ask_trade.resting_id, t.ask_trade.price, t.ask_trade.quantity);
 				journal.write_trade(p->client_oid, t.bid_trade.price, t.bid_trade.quantity);
-				feed.publish_trade(t.bid_trade.price, t.bid_trade.quantity, p->side);
+				ring.try_push(FeedEvent{FeedType::TradePrint, ++seq,  t.bid_trade.price, t.bid_trade.quantity, p->side, bpx, bq, apx, aq});
 			}
 			break;
 		}
@@ -90,11 +95,17 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 			}
 			auto trades = book.modify_order(Trading::OrderModify{it->second,
 				p->qty, p->price, static_cast<Trading::Side>(p->side)});
+			Trading::Bbo bid = book.best_bid();
+			Trading::Bbo ask = book.best_ask();
+			std::int64_t bpx = bid.has ? bid.price : 0;
+			std::uint32_t bq = bid.has ? bid.qty : 0;
+			std::int64_t apx = ask.has ? ask.price : 0;
+			std::uint32_t aq = ask.has ? ask.qty : 0;
 			for (const auto& t : trades) {
 				report_fill(t.bid_trade.aggressor_id, t.bid_trade.price, t.bid_trade.quantity);
 				report_fill(t.ask_trade.resting_id, t.ask_trade.price, t.ask_trade.quantity);
 				journal.write_trade(p->client_oid, t.bid_trade.price, t.bid_trade.quantity);
-				feed.publish_trade(t.bid_trade.price, t.bid_trade.quantity, p->side);
+				ring.try_push(FeedEvent{FeedType::TradePrint, ++seq, t.bid_trade.price, t.bid_trade.quantity, p->side, bpx, bq, apx, aq});
 			}
 			break;
 		}
@@ -172,10 +183,21 @@ void Gateway::maybe_publish_bbo() {
 	std::int64_t apx = ask.has ? ask.price : 0;
 	std::uint32_t aq = ask.has ? ask.qty : 0;
 	if (bpx != last_bid_px || bq != last_bid_qty || apx != last_ask_px || aq != last_ask_qty) {
-		feed.publish_bbo(bpx, bq, apx, aq);
-		last_bid_px = bpx;
-		last_bid_qty = bq;
-		last_ask_px = apx;
-		last_ask_qty = aq;
+		if (ring.try_push(FeedEvent{
+			FeedType::BboUpdate,
+			++seq,
+			0,
+			0,
+			0,
+			bpx,
+			bq,
+			apx,
+			aq
+		})) {
+			last_bid_px = bpx;
+			last_bid_qty = bq;
+			last_ask_px = apx;
+			last_ask_qty = aq;
+		}
 	}
 }
