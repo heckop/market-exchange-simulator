@@ -49,9 +49,11 @@ static_assert(sizeof(BboUpdateMsg) == 24);
 
 class Feed {
 	int sock = -1;
+	static constexpr std::size_t MAX_DATAGRAM = 1400;
 	sockaddr_in group{};
 public:
 	Feed(const char* group_ip = "239.0.0.1", std::uint16_t port = 9002);
 	void publish_trade(std::uint32_t seq, std::int64_t price, std::uint32_t qty, std::uint8_t aggressor_side);
 	void publish_bbo(std::uint32_t seq, std::int64_t bid_px, std::uint32_t bid_qty, std::int64_t ask_px, std::uint32_t ask_qty);
+	void send_batch(const FeedEvent* evs, std::size_t n);
 };

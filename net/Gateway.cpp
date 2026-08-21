@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <memory>
 #include <sys/event.h>
+#include <netinet/tcp.h>
 
 void Gateway::run() {
 	int lfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -59,7 +60,7 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 				static_cast<Trading::OrderType>(p->type)
 			};
 			auto trades = book.add_order(o);
-			send_msg(conn.fd, MsgType::Accepted, AcceptedBody{p->client_oid});
+			append_msg(conn, MsgType::Accepted, AcceptedBody{p->client_oid});
 			Trading::Bbo bid = book.best_bid();
 			Trading::Bbo ask = book.best_ask();
 			std::int64_t bpx = bid.has ? bid.price : 0;
@@ -79,7 +80,7 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 			journal.write_order(framed, framed_n);
 			auto it = conn.client_to_internal.find(p->client_oid);
 			if (it == conn.client_to_internal.end()) {
-				send_msg(conn.fd, MsgType::Rejected, RejectedBody{p->client_oid, 1});
+				append_msg(conn, MsgType::Rejected, RejectedBody{p->client_oid, 1});
 				break;
 			}
 			book.cancel_order(it->second);
@@ -90,7 +91,7 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 			journal.write_order(framed, framed_n);
 			auto it = conn.client_to_internal.find(p->client_oid);
 			if (it == conn.client_to_internal.end()) {
-				send_msg(conn.fd, MsgType::Rejected, RejectedBody{p->client_oid, 1});
+				append_msg(conn, MsgType::Rejected, RejectedBody{p->client_oid, 1});
 				break;
 			}
 			auto trades = book.modify_order(Trading::OrderModify{it->second,
@@ -115,16 +116,17 @@ void Gateway::dispatch(Connection& conn, MsgType type, const std::byte *body, st
 }
 
 template<class Body>
-void Gateway::send_msg(int fd, MsgType t, const Body &b) {
+void Gateway::append_msg(Connection& conn, MsgType t, const Body &b) {
 	std::byte buf[sizeof(MsgHeader) + sizeof(b)];
 	std::size_t n = encode(buf, t, b);
-	ssize_t sent = send(fd, buf, n, 0);
-	(void)sent;
+	conn.out_buf.insert(conn.out_buf.end(), buf, buf + n);
 }
 
 void Gateway::accept_new(int kq, int lfd) {
 	int cfd = accept(lfd, nullptr, nullptr);
 	if (cfd < 0) return;
+	int yes = 1;
+	setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
 	auto conn = std::make_unique<Connection>();
 	conn->fd = cfd;
 	Connection* ptr = conn.get();
@@ -148,6 +150,7 @@ void Gateway::serve(int kq, int fd, Connection *conn) {
 	while (conn->reader.next(type, body, len)) {
 		dispatch(*conn, type, body, len);
 	}
+	flush_all();
 }
 
 void Gateway::disconnect(int kq, int fd, Connection *conn) {
@@ -168,7 +171,7 @@ void Gateway::report_fill(Trading::OrderID internal, std::int64_t price, std::ui
 	if (internal >= internal_to_ref.size()) return;
 	OrderRef& ref = internal_to_ref[internal];
 	if (ref.conn == nullptr) return;
-	send_msg(ref.conn->fd, MsgType::Fill, FillBody{
+	append_msg(*ref.conn, MsgType::Fill, FillBody{
 		ref.client_oid,
 		price,
 		qty
@@ -199,5 +202,22 @@ void Gateway::maybe_publish_bbo() {
 			last_ask_px = apx;
 			last_ask_qty = aq;
 		}
+	}
+}
+
+static void send_all(int fd, std::byte* p, std::size_t n) {
+	std::size_t s = 0;
+	while (s < n) {
+		auto k = send(fd, p + s, n - s, 0);
+		if (k <= 0) return;
+		s += static_cast<std::size_t>(k);
+	}
+}
+
+void Gateway::flush_all() {
+	for (auto& [fd, c_ptr] : conns) {
+		if (c_ptr->out_buf.empty()) continue;
+		send_all(c_ptr->fd, c_ptr->out_buf.data(), c_ptr->out_buf.size());
+		c_ptr->out_buf.clear();
 	}
 }

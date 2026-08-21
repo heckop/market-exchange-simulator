@@ -12,6 +12,7 @@ import OrderBookEngine;
 struct Connection {
 	int fd = -1;
 	FrameReader reader;
+	std::vector<std::byte> out_buf;
 	std::unordered_map<std::uint64_t, Trading::OrderID> client_to_internal;
 };
 
@@ -36,13 +37,14 @@ class Gateway {
 	std::uint32_t last_ask_qty = 0;
 	std::uint32_t seq = 0;
 
-	template <class Body> void send_msg(int fd, MsgType t, const Body& b);
+	template <class Body> void append_msg(Connection& conn, MsgType t, const Body& b);
 	void accept_new(int kq, int lfd);
 	void serve(int kq, int fd, Connection* conn);
 	void disconnect(int kq, int fd, Connection* conn);
 	void dispatch(Connection& conn, MsgType msg, const std::byte* body, std::uint16_t len);
 	void report_fill(Trading::OrderID internal, std::int64_t price, std::uint32_t qty);
 	void maybe_publish_bbo();
+	void flush_all();
 public:
 	Gateway(int port, Trading::OrderBook& book, Journal& journal, SpscRing<FeedEvent, FEED_RING_SIZE>& ring)
 	: port(port), book(book), journal(journal), ring(ring) {}

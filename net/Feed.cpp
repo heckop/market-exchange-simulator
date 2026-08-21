@@ -33,3 +33,34 @@ void Feed::publish_bbo(std::uint32_t seq, std::int64_t bid_px, std::uint32_t bid
 	std::memcpy(buf + sizeof(h), &msg, sizeof(msg));
 	sendto(sock, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&group), sizeof(group));
 }
+
+void Feed::send_batch(const FeedEvent *evs, std::size_t n) {
+	std::byte buf[MAX_DATAGRAM];
+	std::size_t buf_used = 0;
+	auto flush = [&] {
+		if (buf_used) {
+			sendto(sock, buf, buf_used, 0, reinterpret_cast<sockaddr*>(&group), sizeof(group));
+			buf_used = 0;
+		}
+	};
+	for (std::size_t i = 0; i < n; ++i) {
+		std::size_t msg = sizeof(FeedHeader) + (evs[i].kind == FeedType::BboUpdate ? sizeof(BboUpdateMsg) : sizeof(TradePrintMsg));
+		if (buf_used + msg > MAX_DATAGRAM) {
+			flush();
+		}
+		FeedHeader h{evs[i].seq, static_cast<std::uint8_t>(evs[i].kind)};
+		std::memcpy(buf + buf_used, &h, sizeof(h));
+		buf_used += sizeof(h);
+		if (evs[i].kind == FeedType::TradePrint) {
+			TradePrintMsg m{evs[i].price, evs[i].qty, evs[i].side};
+			std::memcpy(buf + buf_used, &m, sizeof(m));
+			buf_used += sizeof(m);
+		}
+		else {
+			BboUpdateMsg m{evs[i].bid_px, evs[i].bid_qty, evs[i].ask_px, evs[i].ask_qty};
+			std::memcpy(buf + buf_used, &m, sizeof(m));
+			buf_used += sizeof(m);
+		}
+	}
+	flush();
+}

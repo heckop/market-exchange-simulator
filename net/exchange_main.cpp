@@ -9,16 +9,13 @@ int main() {
 	Feed feed;
 	std::thread publisher(
 		[&]{
-			FeedEvent ev;
+			FeedEvent batch[64];
 			while (true) {
-				if (ring.try_pop(ev)) {
-					if (ev.kind == FeedType::TradePrint) {
-						feed.publish_trade(ev.seq, ev.price, ev.qty, ev.side);
-					}
-					else {
-						feed.publish_bbo(ev.seq, ev.bid_px, ev.bid_qty, ev.ask_px, ev.ask_qty);
-					}
-				};
+				std::size_t n = 0;
+				while (n < 64 && ring.try_pop(batch[n])) {
+					++n;
+				}
+				if (n) feed.send_batch(batch, n);
 			}
 		}
 		);

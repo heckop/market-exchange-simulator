@@ -26,25 +26,30 @@ int main() {
 	std::uint64_t gaps = 0, trades = 0, bbos = 0;
 	while (true) {
 		ssize_t n = recvfrom(s, buf, sizeof(buf), 0, nullptr, nullptr);
-		if (n < static_cast<ssize_t>(sizeof(FeedHeader)))continue;
-		FeedHeader h;
-		std::memcpy(&h, buf, sizeof(h));
-		if (h.seq != expected) {
-			gaps += h.seq - expected;
-			std::printf("GAP : expected sequence number %u got %u\n", expected, h.seq);
-		}
-		expected = h.seq + 1;
-		if (h.type == static_cast<std::uint8_t>(FeedType::TradePrint)) {
-			TradePrintMsg msg;
-			std::memcpy(&msg, buf + sizeof(h), sizeof(msg));
-			++trades;
-			std::printf("TRADE seq = %u, px = %lld, qty = %u, side = %u\n", h.seq, static_cast<long long>(msg.price), msg.qty, msg.aggressor_side);
-		}
-		else if (h.type == static_cast<std::uint8_t>(FeedType::BboUpdate)) {
-			BboUpdateMsg msg;
-			std::memcpy(&msg, buf + sizeof(h), sizeof(msg));
-			++bbos;
-			std::printf("BBO seq = %u, bid = %lld/%u, ask = %lld/%u\n", h.seq, static_cast<long long>(msg.bid_px), msg.bid_qty, static_cast<long long>(msg.ask_px), msg.ask_qty);
+		std::size_t offset = 0;
+		while (offset + sizeof(FeedHeader) < static_cast<std::size_t>(n)) {
+			FeedHeader h;
+			std::memcpy(&h, buf + offset, sizeof(h));
+			std::size_t bsz = (h.type == static_cast<std::uint8_t>(FeedType::TradePrint)) ? sizeof(TradePrintMsg) : sizeof(BboUpdateMsg);
+			if (offset + bsz > static_cast<std::size_t>(n)) break;
+			if (h.seq != expected) {
+				gaps += h.seq - expected;
+				std::printf("GAP : expected sequence number %u got %u\n", expected, h.seq);
+			}
+			expected = h.seq + 1;
+			if (h.type == static_cast<std::uint8_t>(FeedType::TradePrint)) {
+				TradePrintMsg msg;
+				std::memcpy(&msg, buf + offset + sizeof(h), sizeof(msg));
+				++trades;
+				std::printf("TRADE seq = %u, px = %lld, qty = %u, side = %u\n", h.seq, static_cast<long long>(msg.price), msg.qty, msg.aggressor_side);
+			}
+			else if (h.type == static_cast<std::uint8_t>(FeedType::BboUpdate)) {
+				BboUpdateMsg msg;
+				std::memcpy(&msg, buf + offset + sizeof(h), sizeof(msg));
+				++bbos;
+				std::printf("BBO seq = %u, bid = %lld/%u, ask = %lld/%u\n", h.seq, static_cast<long long>(msg.bid_px), msg.bid_qty, static_cast<long long>(msg.ask_px), msg.ask_qty);
+			}
+			offset += sizeof(FeedHeader) + bsz;
 		}
 	}
 }
