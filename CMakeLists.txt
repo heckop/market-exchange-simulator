@@ -45,5 +45,9 @@ target_include_directories(feed_subscriber PRIVATE ${CMAKE_SOURCE_DIR})
 add_executable(feed_test net/feed_test.cpp net/Feed.cpp)
 target_include_directories(feed_test PRIVATE ${CMAKE_SOURCE_DIR})
 
+add_executable(latency_probe net/latency_probe.cpp bench/OrderGenerator.cpp)
+target_link_libraries(latency_probe OrderBookLib)
+target_include_directories(latency_probe PRIVATE ${CMAKE_SOURCE_DIR})
+
 include(GoogleTest)
 gtest_discover_tests(OrderBookTests)

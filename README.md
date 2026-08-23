@@ -8,6 +8,29 @@ A matching engine takes a stream of buy/sell limit orders and matches them by **
 
 The project was built in measured phases — a cache-friendly allocation-free engine, then a single-participant network path, then multi-participant + market data, then a lock-free threading core, then syscall batching.
 
+## Results
+
+Single Apple Silicon Mac, macOS, Release (`-O3`), loopback networking, median of repeated runs.
+
+**Throughput** — measured after each phase, showing the effect of every optimization:
+
+| Stage | Change | Orders/sec |
+|---|---|---|
+| Engine v1 | `std::map` + `std::list`, per-order `malloc` | ~12.9M *(in-process)* |
+| Engine v2 | flat tick-indexed arrays + id-indexed object pool | **~23.9M** *(in-process)* |
+| + TCP, no feed | full wire protocol + gateway + matching | ~872K |
+| + inline feed | market data published on the matching thread | ~188K *(56% feed loss)* |
+| + Disruptor offload | lock-free ring → dedicated publisher thread | ~781K |
+| + network batching | batched `send`/`sendto`, `TCP_NODELAY` | **~1.14M** *(feed loss 0%)* |
+
+**Latency** — unloaded order round-trip (send → `Accepted`), ping-pong probe, ~99k samples:
+
+| p50 | p99 | p99.9 |
+|---|---|---|
+| ~15 µs | ~30 µs | ~86 µs |
+
+*Numbers are loopback / same-host — a floor on the mechanics, not wire time. The gap between the in-process engine (~23.9M/s) and the full networked exchange (~1.14M/s) is the residual recv/send syscall cost that kernel-bypass networking (io_uring / DPDK) would target.*
+
 ## Directory structure
 
 ```
